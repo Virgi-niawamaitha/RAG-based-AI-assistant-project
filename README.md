@@ -1,24 +1,87 @@
 # RAG-Based AI Assistant - AAIDC Project 1 Template
 
-## 🤖 What is this?
+## What is this?
 
 This is a **learning template** for building a RAG (Retrieval-Augmented Generation) AI assistant. RAG systems combine document search with AI chat - they can answer questions about your specific documents by finding relevant information and using it to generate responses.
 
 **Think of it as:** ChatGPT that knows about YOUR documents and can answer questions about them.
 
-## 🎯 What you'll build
+## What You'll Build
 
 By completing this project, you'll have an AI assistant that can:
 
-- 📄 **Load your documents** (PDFs, text files, etc.)
-- 🔍 **Search through them** to find relevant information
-- 💬 **Answer questions** using the information it found
-- 🧠 **Combine multiple sources** to give comprehensive answers
-
+- **Load your documents** (PDFs, text files, etc.)
+- **Search through them** to find relevant information
+- **Answer questions** using the information it found
+- **Combine multiple sources** to give comprehensive answers
 
 Welcome to your RAG (Retrieval-Augmented Generation) project! This repository provides a **template** that you need to complete. The framework is set up, but the core functionality is missing - that's your job to implement!
 
-## 🎯 What You Need to Build
+## RAG Pipeline
+
+```mermaid
+graph LR
+    A[User Query] --> B[Search Vector DB]
+    B --> C[Retrieve Relevant Chunks]
+    C --> D[Combine Context]
+    D --> E[LLM + Prompt]
+    E --> F[Generated Answer]
+    
+    G[Documents] --> H[Load & Chunk]
+    H --> I[Create Embeddings]
+    I --> J[Store in Vector DB]
+    J -.-> B
+    
+    style A fill:#e1f5ff
+    style F fill:#e1f5ff
+    style G fill:#fff4e1
+```
+
+## System Architecture
+
+```mermaid
+graph TB
+    subgraph "Data Preparation"
+        DOC[Documents: PDF, TXT, DOCX]
+        LOAD[Document Loader]
+        CHUNK[Text Chunker]
+    end
+    
+    subgraph "Vector Database"
+        EMB[Embedding Model]
+        CHROMA[(ChromaDB)]
+    end
+    
+    subgraph "Query Processing"
+        QUERY[User Query]
+        SEARCH[Similarity Search]
+        CONTEXT[Context Retrieval]
+    end
+    
+    subgraph "Response Generation"
+        PROMPT[RAG Prompt Template]
+        LLM[LLM: OpenAI/Groq/Google]
+        ANSWER[Generated Answer]
+    end
+    
+    DOC --> LOAD
+    LOAD --> CHUNK
+    CHUNK --> EMB
+    EMB --> CHROMA
+    
+    QUERY --> SEARCH
+    SEARCH --> CHROMA
+    CHROMA --> CONTEXT
+    CONTEXT --> PROMPT
+    PROMPT --> LLM
+    LLM --> ANSWER
+    
+    style DOC fill:#fff4e1
+    style CHROMA fill:#f0f0f0
+    style ANSWER fill:#e1f5ff
+```
+
+## What You Need to Build
 
 You will implement a complete RAG system that can:
 
@@ -28,7 +91,7 @@ You will implement a complete RAG system that can:
 - Generate responses using retrieved context and an LLM
 
 
-## 📝 Implementation Steps
+## Implementation Steps
 
 The project requires implementing 7 main steps:
 
@@ -251,7 +314,7 @@ def query(self, question: str, n_results: int = 3) -> Dict[str, Any]:
 
 ---
 
-## 🧪 Testing Your Implementation
+## Testing Your Implementation
 
 ### Test Individual Components
 
@@ -292,7 +355,7 @@ Try these example questions:
 
 ---
 
-## 🔧 Implementation Freedom
+## Implementation Freedom
 
 **Important:** This template uses specific packages (ChromaDB, LangChain, HuggingFace Transformers) and approaches, but **you are completely free to use whatever you prefer!**
 
@@ -325,7 +388,7 @@ Try these example questions:
 
 ---
 
-## 🚀 Setup Instructions
+## Setup Instructions
 
 ### Prerequisites
 
@@ -359,16 +422,14 @@ Before starting, make sure you have:
 
    ```
    OPENAI_API_KEY=your_key_here
-   # OR
-   GROQ_API_KEY=your_key_here  
-   # OR
+   GROQ_API_KEY=your_key_here
    GOOGLE_API_KEY=your_key_here
    ```
 
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 rt-aaidc-project1-template/
@@ -384,27 +445,27 @@ rt-aaidc-project1-template/
 
 ---
 
-## 🎓 Learning Objectives
+## Learning Objectives
 
 By completing this project, you will:
 
-- ✅ Understand RAG architecture and data flow
-- ✅ Implement text chunking strategies
-- ✅ Work with vector databases and embeddings
-- ✅ Build LLM-powered applications with LangChain
-- ✅ Handle multiple API providers
-- ✅ Create production-ready AI applications
+- Understand RAG architecture and data flow
+- Implement text chunking strategies
+- Work with vector databases and embeddings
+- Build LLM-powered applications with LangChain
+- Handle multiple API providers
+- Create production-ready AI applications
 
 ---
 
-## 🏁 Success Criteria
+## Success Criteria
 
 Your implementation is complete when:
 
-1. ✅ You can load your own documents
-2. ✅ The system chunks and embeds documents
-3. ✅ Search returns relevant results
-4. ✅ The RAG system generates contextual answers
-5. ✅ You can ask questions and get meaningful responses
+1. You can load your own documents
+2. The system chunks and embeds documents
+3. Search returns relevant results
+4. The RAG system generates contextual answers
+5. You can ask questions and get meaningful responses
 
-**Good luck building your RAG system! 🚀**
+**Good luck building your RAG system!**
