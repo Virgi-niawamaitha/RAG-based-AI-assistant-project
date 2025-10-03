@@ -1,43 +1,85 @@
+# Standard library
 import os
 from typing import List
+
+# Third-party - Environment
 from dotenv import load_dotenv
+
+# Third-party - LangChain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from vectordb import VectorDB
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+# Third-party - Document processing
+import PyPDF2
+import docx
+
+# Local imports
+from vectordb import VectorDB
 
 # Load environment variables
 load_dotenv()
 
 
-def load_documents() -> List[str]:
+def load_documents(data_dir: str = "data") -> List[dict]:
     """
-    Load documents for demonstration.
-
+    Load documents from directory and subdirectories.
+    
+    Supports: .txt, .pdf, .docx files
+    
+    Args:
+        data_dir: Root directory containing documents
+        
     Returns:
-        List of sample documents
+        List of dicts with 'content' and 'metadata' keys
     """
     results = []
-    # TODO: Implement document loading
-    # HINT: Read the documents from the data directory
-    # HINT: Return a list of documents
-    # HINT: Your implementation depends on the type of documents you are using (.txt, .pdf, etc.)
-
-    # Your implementation here
+    
+    for root, _, files in os.walk(data_dir):
+        for filename in files:
+            file_path = os.path.join(root, filename)
+            text = ""
+            
+            if filename.lower().endswith(".txt"):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+                    
+            elif filename.lower().endswith(".pdf"):
+                with open(file_path, "rb") as f:
+                    reader = PyPDF2.PdfReader(f)
+                    for page in reader.pages:
+                        text += page.extract_text() or ""
+                        
+            elif filename.lower().endswith(".docx"):
+                doc = docx.Document(file_path)
+                text = "\n".join([para.text for para in doc.paragraphs])
+                
+            else:
+                continue
+            
+            if text.strip():
+                results.append({
+                    "content": text,
+                    "metadata": {
+                        "source": filename,
+                        "path": file_path
+                    }
+                })
+    
+    print(f"Loaded {len(results)} documents")
     return results
 
 
 class RAGAssistant:
     """
-    A simple RAG-based AI assistant using ChromaDB and multiple LLM providers.
+    RAG-based AI assistant using ChromaDB and multiple LLM providers.
     Supports OpenAI, Groq, and Google Gemini APIs.
     """
 
     def __init__(self):
-        """Initialize the RAG assistant."""
-        # Initialize LLM - check for available API keys in order of preference
+        """Initialize the RAG assistant with LLM, vector DB, and prompt chain."""
         self.llm = self._initialize_llm()
         if not self.llm:
             raise ValueError(
@@ -45,17 +87,48 @@ class RAGAssistant:
                 "OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY in your .env file"
             )
 
-        # Initialize vector database
         self.vector_db = VectorDB()
 
-        # Create RAG prompt template
-        # TODO: Implement your RAG prompt template
-        # HINT: Use ChatPromptTemplate.from_template() with a template string
-        # HINT: Your template should include placeholders for {context} and {question}
-        # HINT: Design your prompt to effectively use retrieved context to answer questions
-        self.prompt_template = None  # Your implementation here
+        self.prompt_template = ChatPromptTemplate.from_template("""
+You are a knowledgeable research assistant specializing in providing accurate, 
+well-sourced answers based on provided documents.
 
-        # Create the chain
+## Your Role & Behavior:
+- Analyze the context carefully before answering
+- Be precise and cite specific information from the context
+- Maintain a professional yet approachable tone
+- If information is ambiguous, acknowledge the nuance
+
+## Scope & Boundaries:
+- ONLY answer based on the provided context below
+- If the context doesn't contain relevant information, clearly state: 
+  "I don't have enough information in the provided documents to answer this question."
+- Do not make assumptions or add information not present in the context
+- Do not use external knowledge beyond what's provided
+
+## Safety & Ethics:
+- If asked something harmful or unethical, politely decline
+- Respect privacy and confidentiality of any sensitive information
+- Present information objectively without bias
+
+## Output Format:
+- Provide clear, structured answers
+- Use bullet points for lists when appropriate
+- Keep responses concise but complete
+- If relevant, mention which document/source the information comes from
+
+---
+
+Context:
+{context}
+
+---
+
+Question: {question}
+
+Answer:
+""")
+
         self.chain = self.prompt_template | self.llm | StrOutputParser()
 
         print("RAG Assistant initialized successfully")
@@ -65,19 +138,22 @@ class RAGAssistant:
         Initialize the LLM by checking for available API keys.
         Tries OpenAI, Groq, and Google Gemini in that order.
         """
-        # Check for OpenAI API key
         if os.getenv("OPENAI_API_KEY"):
             model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
             print(f"Using OpenAI model: {model_name}")
             return ChatOpenAI(
-                api_key=os.getenv("OPENAI_API_KEY"), model=model_name, temperature=0.0
+                api_key=os.getenv("OPENAI_API_KEY"),
+                model=model_name,
+                temperature=0.0
             )
 
         elif os.getenv("GROQ_API_KEY"):
             model_name = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
             print(f"Using Groq model: {model_name}")
             return ChatGroq(
-                api_key=os.getenv("GROQ_API_KEY"), model=model_name, temperature=0.0
+                api_key=os.getenv("GROQ_API_KEY"),
+                model=model_name,
+                temperature=0.0
             )
 
         elif os.getenv("GOOGLE_API_KEY"):
@@ -86,75 +162,97 @@ class RAGAssistant:
             return ChatGoogleGenerativeAI(
                 google_api_key=os.getenv("GOOGLE_API_KEY"),
                 model=model_name,
-                temperature=0.0,
+                temperature=0.0
             )
 
         else:
             raise ValueError(
-                "No valid API key found. Please set one of: OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY in your .env file"
+                "No valid API key found. Please set one of: "
+                "OPENAI_API_KEY, GROQ_API_KEY, or GOOGLE_API_KEY in your .env file"
             )
 
-    def add_documents(self, documents: List) -> None:
+    def add_documents(self, documents: List[dict]) -> None:
         """
         Add documents to the knowledge base.
 
         Args:
-            documents: List of documents
+            documents: List of dicts with 'content' and 'metadata' keys
         """
         self.vector_db.add_documents(documents)
 
     def invoke(self, input: str, n_results: int = 3) -> str:
         """
-        Query the RAG assistant.
+        Query the RAG assistant with retrieval-augmented generation.
 
         Args:
-            input: User's input
+            input: User's question
             n_results: Number of relevant chunks to retrieve
 
         Returns:
-            Dictionary containing the answer and retrieved context
+            String answer from the LLM based on retrieved context
         """
-        llm_answer = ""
-        # TODO: Implement the RAG query pipeline
-        # HINT: Use self.vector_db.search() to retrieve relevant context chunks
-        # HINT: Combine the retrieved document chunks into a single context string
-        # HINT: Use self.chain.invoke() with context and question to generate the response
-        # HINT: Return a string answer from the LLM
+        search_results = self.vector_db.search(input, n_results=n_results)
+        retrieved_chunks = search_results.get("documents", [])
 
-        # Your implementation here
+        if not retrieved_chunks:
+            return "I couldn't find relevant information in the documents to answer your question."
+
+        context = "\n\n".join(retrieved_chunks)
+
+        llm_answer = self.chain.invoke({
+            "context": context,
+            "question": input
+        })
+
         return llm_answer
 
 
 def main():
-    """Main function to demonstrate the RAG assistant."""
+    """Main function to run the interactive RAG assistant."""
     try:
-        # Initialize the RAG assistant
         print("Initializing RAG Assistant...")
         assistant = RAGAssistant()
 
-        # Load sample documents
         print("\nLoading documents...")
-        sample_docs = load_documents()
-        print(f"Loaded {len(sample_docs)} sample documents")
+        documents = load_documents()
+        
+        if not documents:
+            print("No documents found in data/ directory. Please add some documents.")
+            return
+        
+        print(f"Loaded {len(documents)} documents")
+        assistant.add_documents(documents)
 
-        assistant.add_documents(sample_docs)
+        print("\n" + "="*50)
+        print("RAG Assistant Ready! Ask me anything or type 'quit' to exit.")
+        print("="*50 + "\n")
 
-        done = False
+        while True:
+            question = input("Your question: ").strip()
+            
+            if not question:
+                continue
+            
+            if question.lower() in ['quit', 'exit', 'q']:
+                print("Goodbye!")
+                break
+            
+            print("\nThinking...\n")
+            answer = assistant.invoke(question)
+            print(f"Answer: {answer}\n")
+            print("-" * 50 + "\n")
 
-        while not done:
-            question = input("Enter a question or 'quit' to exit: ")
-            if question.lower() == "quit":
-                done = True
-            else:
-                result = assistant.query(question)
-                print(result)
-
+    except KeyboardInterrupt:
+        print("\n\nInterrupted. Goodbye!")
     except Exception as e:
-        print(f"Error running RAG assistant: {e}")
-        print("Make sure you have set up your .env file with at least one API key:")
-        print("- OPENAI_API_KEY (OpenAI GPT models)")
-        print("- GROQ_API_KEY (Groq Llama models)")
-        print("- GOOGLE_API_KEY (Google Gemini models)")
+        print(f"\nError: {e}")
+        print("\nMake sure you have:")
+        print("1. Created a .env file with at least one API key")
+        print("2. Added documents to the data/ directory")
+        print("\nSupported API keys:")
+        print("  - OPENAI_API_KEY (OpenAI GPT models)")
+        print("  - GROQ_API_KEY (Groq Llama models)")
+        print("  - GOOGLE_API_KEY (Google Gemini models)")
 
 
 if __name__ == "__main__":
